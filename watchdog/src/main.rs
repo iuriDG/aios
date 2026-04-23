@@ -123,11 +123,20 @@ fn handle_tamper(path: &str) {
     let msg = format!("TAMPER DETECTED: {} hash mismatch", path);
     eprintln!("[WATCHDOG] {}", msg);
     log_tamper(&msg);
-    send_notification(&msg);
-    restore_defaults();
 
-    // Remove socket so helper cannot be contacted
+    // Clean up first
+    restore_defaults();
     let _ = fs::remove_file("/run/aios/helper.sock");
+
+    // Then alert
+    send_notification(&msg);
+    Command::new("bash")
+        .args([
+            "/usr/local/bin/aios-panic.sh",
+            &format!("Tamper detected on {}", path)
+        ])
+        .output()
+        .ok();
 
     println!("[WATCHDOG] System locked - manual restart required");
 }

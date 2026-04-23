@@ -5,16 +5,20 @@ from observer import observe
 from decision_engine import decide
 from llm_interface import ask, is_ollama_running
 from profile_store import init_db, get_user_pref, set_user_pref, log_action
+from config import LOOP_CADENCE, DRY_RUN, SOCKET_PATH, READY_FILE
+from ipc import send_actions
 
-# How often the main loop runs in seconds per gear
-LOOP_CADENCE = {
-    "low":    5,
-    "medium": 15,
-    "heavy":  30
-}
+def send_to_helper(actions: list, gear: str, mode: str):
+    results = send_actions(actions)
+    for r in results:
+        log_action(
+            action=r["action"].get("action"),
+            target=str(r["action"].get("pid") or r["action"].get("unit") or "system"),
+            mode=mode,
+            gear=gear,
+            result="ok" if r["result"].get("success") else r["result"].get("message")
+        )
 
-# Dry run mode - log actions but never execute
-DRY_RUN = True
 
 def send_notification(message: str):
     # Uses native OS notification - Linux only

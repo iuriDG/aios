@@ -2,8 +2,8 @@ import requests
 import json
 from profile_store import get_user_pref
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "phi3:mini"
+from config import OLLAMA_URL, OLLAMA_MODEL
+MODEL = OLLAMA_MODEL
 
 SYSTEM_PROMPT = """
 You are an OS process manager for an AI-driven operating system.

@@ -33,6 +33,9 @@ chmod +x /opt/aios-agent/main.py
 cp systemd/*.service /etc/systemd/system/
 systemctl daemon-reload
 
+cp scripts/panic.sh /usr/local/bin/aios-panic.sh
+chmod +x /usr/local/bin/aios-panic.sh
+
 # Enable services in correct order
 systemctl enable aios-helper
 systemctl enable aios-watchdog
@@ -45,3 +48,11 @@ if [ ! -f /opt/aios-agent/profiles/aios.db ]; then
 fi
 
 echo "AIOS installed - reboot to start"
+
+# After first_run.py line add:
+echo "Running hardware benchmark..."
+python3 scripts/benchmark.py
+
+echo "Running network profile..."
+python3 scripts/network_profile.py
+
