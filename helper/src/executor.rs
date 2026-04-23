@@ -41,13 +41,27 @@ pub fn execute(request: &Value) -> Result<String, Box<dyn std::error::Error>> {
             if !["performance", "balanced", "powersave"].contains(&governor) {
                 return Err("invalid governor".into());
             }
-            // Write to all CPU cores
+
+            // CPU governor
             for i in 0..num_cpus() {
                 let path = format!(
                     "/sys/devices/system/cpu/cpu{}/cpufreq/scaling_governor", i
                 );
-                std::fs::write(&path, governor)?;
+                let _ = std::fs::write(&path, governor);
             }
+
+            // AMD GPU power profile
+            let amd_gpu_path = "/sys/class/drm/card0/device/power_dpm_force_performance_level";
+            if std::path::Path::new(amd_gpu_path).exists() {
+                let amd_level = match governor {
+                    "performance" => "high",
+                    "balanced"    => "auto",
+                    "powersave"   => "low",
+                    _             => "auto"
+                };
+                let _ = std::fs::write(amd_gpu_path, amd_level);
+            }
+
             Ok(format!("governor set to {}", governor))
         }
 

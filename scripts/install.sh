@@ -11,6 +11,8 @@ mkdir -p /var/log/aios
 mkdir -p /etc/aios
 chown aios:aios /run/aios
 chown aios:aios /var/log/aios
+touch /var/log/aios/audit.log
+chattr +a /var/log/aios/audit.log
 
 # Build Rust binaries
 echo "Building helper and watchdog..."

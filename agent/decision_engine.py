@@ -1,31 +1,18 @@
 import json
-from profile_store import get_app_profile, get_user_pref, log_action
+import subprocess
+from profile_store import get_user_pref, set_user_pref, log_action
 from signal_combiner import resolve
 from power_manager import get_power_recommendation
+from config import (PROTECTED_PROCESSES, NICE_REALTIME, NICE_HIGH, NICE_NORMAL, NICE_LOW, NICE_BACKGROUND)
 
-_last_mode = None
-_transition_step = 0
-
-# Processes the AI can never touch regardless of anything
-PROTECTED = [
-    "systemd", "init", "sshd", "networkmanager",
-    "dbus", "kworker", "aios-agent", "aios-helper",
-    "aios-watchdog", "kernel", "migration", "rcu"
-]
-
-# CPU nice levels
-NICE_REALTIME   = -20
-NICE_HIGH       = -10
-NICE_NORMAL     =   0
-NICE_LOW        =  10
-NICE_BACKGROUND =  19
+PROTECTED = PROTECTED_PROCESSES
 
 def deduplicate(actions: list) -> list:
     seen = set()
     result = []
     for a in actions:
         key = (a.get("action"), a.get("pid"), a.get("unit"))
-        if not key in seen:
+        if key not in seen:
             seen.add(key)
             result.append(a)
     return result
@@ -59,88 +46,55 @@ def get_gear(snapshot) -> str:
 
 def build_gaming_actions(snapshot, gear):
     actions = []
-    processes = snapshot.get("processes", [])
-
-    for p in processes:
+    for p in snapshot.get("processes", []):
         name = p["name"].lower()
         pid = p["pid"]
-
         if is_protected(name):
             continue
-
-        # Known game process - give it everything
         if any(g in name for g in ["steam", "wine", "proton", "game"]):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_REALTIME})
             actions.append({"action": "cgroup_cpu_limit", "pid": pid, "quota": 90})
-
-        # Background noise - kill or deprioritise
         elif any(b in name for b in ["update", "sync", "backup", "index", "tracker"]):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_BACKGROUND})
             if gear == "heavy":
-                actions.append({"action": "kill", "pid": pid, "signal": 19})  # SIGSTOP
-
-        # Everything else gets low priority
+                actions.append({"action": "kill", "pid": pid, "signal": 19})
         else:
             actions.append({"action": "renice", "pid": pid, "priority": NICE_LOW})
-
     actions.append({"action": "systemctl", "command": "stop", "unit": "apt-daily.timer"})
     actions.append({"action": "systemctl", "command": "stop", "unit": "fwupd.service"})
-    actions.append({"action": "set_governor", "governor": "performance"})
-
     return actions
 
 def build_dev_actions(snapshot, gear):
     actions = []
-    processes = snapshot.get("processes", [])
-
-    for p in processes:
+    for p in snapshot.get("processes", []):
         name = p["name"].lower()
         pid = p["pid"]
-
         if is_protected(name):
             continue
-
-        # Compiler or build tool - high priority
         if any(c in name for c in ["gcc", "g++", "cargo", "rustc", "make", "cmake", "clang"]):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_HIGH})
             actions.append({"action": "cgroup_cpu_limit", "pid": pid, "quota": 70})
-
-        # Dev tools - normal priority
         elif any(d in name for d in ["code", "nvim", "vim", "terminal", "node", "python"]):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_NORMAL})
-
-        # Games - deprioritise
         elif any(g in name for g in ["steam", "wine", "game"]):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_BACKGROUND})
-
-    actions.append({"action": "set_governor", "governor": "performance"})
-
     return actions
 
 def build_browsing_actions(snapshot, gear):
     actions = []
-    processes = snapshot.get("processes", [])
-
-    for p in processes:
+    for p in snapshot.get("processes", []):
         name = p["name"].lower()
         pid = p["pid"]
-
         if is_protected(name):
             continue
-
         if any(b in name for b in ["firefox", "chrome", "chromium", "brave"]):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_NORMAL})
-
         elif any(h in name for h in ["update", "backup", "sync", "index"]):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_BACKGROUND})
-
-    actions.append({"action": "set_governor", "governor": "balanced"})
-
     return actions
 
 def build_idle_actions(snapshot, gear):
     return [
-        {"action": "set_governor", "governor": "powersave"},
         {"action": "systemctl", "command": "start", "unit": "fwupd.service"},
         {"action": "systemctl", "command": "start", "unit": "apt-daily.timer"},
     ]
@@ -154,77 +108,69 @@ MODE_BUILDERS = {
 
 def build_transition_actions(snapshot, old_mode, new_mode) -> list:
     actions = []
-    processes = snapshot.get("processes", [])
-
-    for p in processes:
+    for p in snapshot.get("processes", []):
         name = p["name"].lower()
         pid = p["pid"]
-
         if is_protected(name):
             continue
-
-        # Gradually deprioritise old mode processes
         if old_mode == "gaming":
             if any(g in name for g in ["steam", "wine", "proton"]):
-                # Step down priority gradually not instant kill
                 actions.append({"action": "renice", "pid": pid, "priority": NICE_LOW})
-
         elif old_mode == "dev":
             if any(d in name for d in ["gcc", "cargo", "make"]):
                 actions.append({"action": "renice", "pid": pid, "priority": NICE_NORMAL})
-
-    # Set governor to balanced during transition
     actions.append({"action": "set_governor", "governor": "balanced"})
-
     return actions
 
 def decide(snapshot) -> dict:
     resolution = resolve(snapshot)
     mode = resolution["active_mode"]
-    global _last_mode, _transition_step
+    gear = get_gear(snapshot)
+    last_mode = get_user_pref("last_mode")
+    transition_step = int(get_user_pref("transition_step") or 0)
 
-    # Detect mode change
-    if _last_mode and _last_mode != mode:
-        _transition_step += 1
-        if _transition_step < 3:
-            # Gradual drain - only deprioritise old mode apps for now
-            # dont fully switch until 3 cycles confirm the new mode
-            print(f"[TRANSITION] {_last_mode} -> {mode} step {_transition_step}/3")
-            actions = build_transition_actions(snapshot, _last_mode, mode)
+    # Transition handling
+    if last_mode and last_mode != mode:
+        transition_step += 1
+        set_user_pref("transition_step", str(transition_step))
+        if transition_step < 3:
+            print(f"[TRANSITION] {last_mode} -> {mode} step {transition_step}/3")
+            actions = build_transition_actions(snapshot, last_mode, mode)
             return {
-                "mode": _last_mode,
+                "mode": last_mode,
                 "gear": gear,
                 "source": resolution["source"],
                 "prompt_user": resolution["prompt_user"],
                 "prompt_message": resolution["prompt_message"],
-                "actions": actions
+                "actions": deduplicate(actions)
             }
         else:
-            # Transition complete
             print(f"[TRANSITION] Complete - now in {mode}")
-            _last_mode = mode
-            _transition_step = 0
+            set_user_pref("last_mode", mode)
+            set_user_pref("transition_step", "0")
     else:
-        _last_mode = mode
-        _transition_step = 0
-        gear = get_gear(snapshot)
+        set_user_pref("last_mode", mode)
+        set_user_pref("transition_step", "0")
 
+    # Build actions for current mode
     builder = MODE_BUILDERS.get(mode, build_browsing_actions)
     actions = builder(snapshot, gear)
+
     # Apply power recommendation
     power = get_power_recommendation(mode, gear)
     actions.append({"action": "set_governor", "governor": power["governor"]})
 
     if power["warn_user"] and power["warn_message"]:
-        import subprocess
         subprocess.run(["notify-send", "AIOS Power", power["warn_message"]], check=False)
 
     if power["defer_heavy_tasks"]:
-        # Remove any actions that would boost compilers - defer them
         actions = [a for a in actions if not (
-            a.get("action") == "renice" and 
+            a.get("action") == "renice" and
             a.get("priority", 0) < 0
         )]
+
+    # Deduplicate before logging
+    actions = deduplicate(actions)
 
     # Log each action
     for a in actions:
@@ -233,8 +179,7 @@ def decide(snapshot) -> dict:
             target=str(a.get("pid") or a.get("unit") or "system"),
             mode=mode,
             gear=gear,
-            result="pending",
-            actions = deduplicate(actions)
+            result="pending"
         )
 
     return {

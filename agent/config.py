@@ -39,3 +39,40 @@ PROTECTED_PROCESSES = [
 
 # Dry run - set to False when ready to execute
 DRY_RUN = True
+
+# Protected processes
+PROTECTED_PROCESSES = [
+    "systemd", "init", "sshd", "networkmanager",
+    "dbus", "kworker", "aios-agent", "aios-helper",
+    "aios-watchdog", "kernel", "migration", "rcu"
+]
+
+# CPU nice levels
+NICE_REALTIME   = -20
+NICE_HIGH       = -10
+NICE_NORMAL     =   0
+NICE_LOW        =  10
+NICE_BACKGROUND =  19
+
+# Known process categories
+KNOWN_GAMES = [
+    "steam", "steamwebhelper", "gameoverlayui",
+    "wine", "proton", "lutris", "heroic"
+]
+
+KNOWN_DEV = [
+    "code", "vscodium", "nvim", "vim", "emacs",
+    "gcc", "g++", "clang", "cargo", "rustc",
+    "make", "cmake", "python3", "node", "docker",
+    "java", "gradle", "maven"
+]
+
+KNOWN_BROWSER = [
+    "firefox", "chrome", "chromium", "brave",
+    "opera", "vivaldi", "edge"
+]
+
+COMPILERS = [
+    "gcc", "g++", "clang", "rustc", "cargo",
+    "make", "cmake", "gradle", "maven", "go"
+]

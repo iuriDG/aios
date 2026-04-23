@@ -1,4 +1,5 @@
 import psutil
+import os
 import json
 import time
 import logging
@@ -43,8 +44,9 @@ def observe():
         "cpu": {
             "percent_total": psutil.cpu_percent(interval=1),
             "percent_per_core": psutil.cpu_percent(interval=1, percpu=True),
-            "freq_mhz": psutil.cpu_freq().current if psutil.cpu_freq() else None,
-            "governor": governor
+            "freq_mhz": psutil.cpu_freq().current if psutil.cpu_freq() else 0,
+            "governor": open("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").read().strip()
+                        if os.path.exists("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor") else "unknown"
         },
         "ram": {
             "total_gb": round(psutil.virtual_memory().total / 1e9, 1),
@@ -53,12 +55,12 @@ def observe():
             "swap_used_pct": psutil.swap_memory().percent
         },
         "disk": {
-            "read_mb": round(psutil.disk_io_counters().read_bytes / 1e6, 1),
-            "write_mb": round(psutil.disk_io_counters().write_bytes / 1e6, 1)
+            "read_mb": round(psutil.disk_io_counters().read_bytes / 1e6, 1) if psutil.disk_io_counters() else 0,
+            "write_mb": round(psutil.disk_io_counters().write_bytes / 1e6, 1) if psutil.disk_io_counters() else 0
         },
         "network": {
-            "bytes_sent_mb": round(psutil.net_io_counters().bytes_sent / 1e6, 1),
-            "bytes_recv_mb": round(psutil.net_io_counters().bytes_recv / 1e6, 1)
+            "bytes_sent_mb": round(psutil.net_io_counters().bytes_sent / 1e6, 1) if psutil.net_io_counters() else 0,
+            "bytes_recv_mb": round(psutil.net_io_counters().bytes_recv / 1e6, 1) if psutil.net_io_counters() else 0
         },
         "gpu": get_gpu(),
         "processes": _get_processes()

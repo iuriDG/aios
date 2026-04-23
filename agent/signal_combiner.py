@@ -2,15 +2,7 @@ import json
 from datetime import datetime, timedelta
 from profile_store import get_user_pref, set_user_pref
 from context_engine import classify
-
-# How confident the context engine needs to be before acting without asking
-CONFIDENCE_THRESHOLD = 50
-
-# How long a manual mode selection stays valid
-MANUAL_MODE_EXPIRY_MINUTES = 120
-
-# How long to suppress a prompt after user dismisses it
-SUPPRESS_MINUTES = 30
+from config import CONFIDENCE_THRESHOLD, MANUAL_MODE_EXPIRY_MINUTES, SUPPRESS_PROMPT_MINUTES
 
 def get_manual_mode():
     mode = get_user_pref("manual_mode")
@@ -43,7 +35,7 @@ def is_suppressed(mode):
     return datetime.now() < datetime.fromisoformat(suppress_until)
 
 def suppress_prompt(mode):
-    until = datetime.now() + timedelta(minutes=SUPPRESS_MINUTES)
+    until = datetime.now() + timedelta(minutes=SUPPRESS_PROMPT_MINUTES)
     set_user_pref(f"suppress_prompt_until_{mode}", until.isoformat())
 
 def should_prompt(detected_mode, manual_mode, confidence):

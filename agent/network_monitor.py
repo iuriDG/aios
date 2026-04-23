@@ -68,11 +68,13 @@ def get_default_interface() -> str:
         out = subprocess.check_output(
             ["ip", "route", "show", "default"],
             timeout=5
-        ).decode()
-        # Output: default via x.x.x.x dev eth0 ...
-        parts = out.split()
-        dev_index = parts.index("dev") + 1
-        return parts[dev_index]
+        ).decode().strip()
+
+        for part in out.split():
+            if part == "dev":
+                idx = out.split().index(part)
+                return out.split()[idx + 1]
+        return ""
     except Exception:
         return ""
 

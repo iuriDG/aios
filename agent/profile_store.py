@@ -1,7 +1,6 @@
 import sqlite3
 import json
 from datetime import datetime
-
 from config import DB_PATH
 
 def init_db():

@@ -1,28 +1,8 @@
 import psutil
 import json
 from profile_store import get_app_profile, get_user_pref
+from config import KNOWN_GAMES, KNOWN_DEV, KNOWN_BROWSER, COMPILERS
 
-KNOWN_GAMES = [
-    "steam", "steamwebhelper", "gameoverlayui",
-    "wine", "proton", "lutris", "heroic"
-]
-
-KNOWN_DEV = [
-    "code", "vscodium", "nvim", "vim", "emacs",
-    "gcc", "g++", "clang", "cargo", "rustc",
-    "make", "cmake", "python3", "node", "docker",
-    "java", "gradle", "maven"
-]
-
-KNOWN_BROWSER = [
-    "firefox", "chrome", "chromium", "brave",
-    "opera", "vivaldi", "edge"
-]
-
-COMPILERS = [
-    "gcc", "g++", "clang", "rustc", "cargo",
-    "make", "cmake", "gradle", "maven", "go"
-]
 
 def get_running_process_names(snapshot):
     return [p["name"].lower() for p in snapshot.get("processes", [])]

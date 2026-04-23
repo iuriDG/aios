@@ -12,7 +12,8 @@ SECRET_PATH = "/etc/aios/ipc.secret"
 
 def get_secret() -> bytes:
     if os.path.exists(SECRET_PATH):
-        return open(SECRET_PATH, "rb").read()
+        with open(SECRET_PATH, "rb") as f:
+            return f.read()
     # Generate and store on first run
     secret = os.urandom(32)
     os.makedirs("/etc/aios", exist_ok=True)

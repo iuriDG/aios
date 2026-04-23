@@ -51,7 +51,7 @@ def get_integrated_gpu() -> dict:
             "vram_used_mb": 0,
             "vram_total_mb": 0
         }
-    except:
+    except Exception:
         return {}
 
 def get_gpu() -> dict:
