@@ -4,6 +4,8 @@ import time
 import logging
 import os
 from datetime import datetime
+from gpu_observer import get_gpu
+
 
 logging.basicConfig(
     filename='observer.log',
@@ -58,6 +60,7 @@ def observe():
             "bytes_sent_mb": round(psutil.net_io_counters().bytes_sent / 1e6, 1),
             "bytes_recv_mb": round(psutil.net_io_counters().bytes_recv / 1e6, 1)
         },
+        "gpu": get_gpu(),
         "processes": _get_processes()
     }
 

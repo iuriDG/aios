@@ -1,6 +1,10 @@
 import json
 from profile_store import get_app_profile, get_user_pref, log_action
 from signal_combiner import resolve
+from power_manager import get_power_recommendation
+
+_last_mode = None
+_transition_step = 0
 
 # Processes the AI can never touch regardless of anything
 PROTECTED = [
@@ -148,13 +152,79 @@ MODE_BUILDERS = {
     "idle":     build_idle_actions,
 }
 
+def build_transition_actions(snapshot, old_mode, new_mode) -> list:
+    actions = []
+    processes = snapshot.get("processes", [])
+
+    for p in processes:
+        name = p["name"].lower()
+        pid = p["pid"]
+
+        if is_protected(name):
+            continue
+
+        # Gradually deprioritise old mode processes
+        if old_mode == "gaming":
+            if any(g in name for g in ["steam", "wine", "proton"]):
+                # Step down priority gradually not instant kill
+                actions.append({"action": "renice", "pid": pid, "priority": NICE_LOW})
+
+        elif old_mode == "dev":
+            if any(d in name for d in ["gcc", "cargo", "make"]):
+                actions.append({"action": "renice", "pid": pid, "priority": NICE_NORMAL})
+
+    # Set governor to balanced during transition
+    actions.append({"action": "set_governor", "governor": "balanced"})
+
+    return actions
+
 def decide(snapshot) -> dict:
     resolution = resolve(snapshot)
     mode = resolution["active_mode"]
-    gear = get_gear(snapshot)
+    global _last_mode, _transition_step
+
+    # Detect mode change
+    if _last_mode and _last_mode != mode:
+        _transition_step += 1
+        if _transition_step < 3:
+            # Gradual drain - only deprioritise old mode apps for now
+            # dont fully switch until 3 cycles confirm the new mode
+            print(f"[TRANSITION] {_last_mode} -> {mode} step {_transition_step}/3")
+            actions = build_transition_actions(snapshot, _last_mode, mode)
+            return {
+                "mode": _last_mode,
+                "gear": gear,
+                "source": resolution["source"],
+                "prompt_user": resolution["prompt_user"],
+                "prompt_message": resolution["prompt_message"],
+                "actions": actions
+            }
+        else:
+            # Transition complete
+            print(f"[TRANSITION] Complete - now in {mode}")
+            _last_mode = mode
+            _transition_step = 0
+    else:
+        _last_mode = mode
+        _transition_step = 0
+        gear = get_gear(snapshot)
 
     builder = MODE_BUILDERS.get(mode, build_browsing_actions)
     actions = builder(snapshot, gear)
+    # Apply power recommendation
+    power = get_power_recommendation(mode, gear)
+    actions.append({"action": "set_governor", "governor": power["governor"]})
+
+    if power["warn_user"] and power["warn_message"]:
+        import subprocess
+        subprocess.run(["notify-send", "AIOS Power", power["warn_message"]], check=False)
+
+    if power["defer_heavy_tasks"]:
+        # Remove any actions that would boost compilers - defer them
+        actions = [a for a in actions if not (
+            a.get("action") == "renice" and 
+            a.get("priority", 0) < 0
+        )]
 
     # Log each action
     for a in actions:

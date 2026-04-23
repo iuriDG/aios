@@ -4,8 +4,7 @@ set -e
 echo "Installing AIOS..."
 
 # Create aios user for agent - no root needed
-useradd -r -s /bin/false aios 2>/dev/null || true
-
+useradd -r -s /bin/false -M -d /nonexistent aios 2>/dev/null || true
 # Create directories
 mkdir -p /run/aios
 mkdir -p /var/log/aios

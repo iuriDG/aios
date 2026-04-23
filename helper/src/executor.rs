@@ -60,6 +60,36 @@ pub fn execute(request: &Value) -> Result<String, Box<dyn std::error::Error>> {
             std::fs::write(&path, format!("{} 100000", quota * 1000))?;
             Ok(format!("cpu limit {} set for pid {}", quota, pid))
         }
+        "cgroup_ram_limit" => {
+    let pid = request["pid"].as_i64().ok_or("missing pid")?;
+    let bytes = request["bytes"].as_i64().ok_or("missing bytes")?;
+    let path = format!("/sys/fs/cgroup/aios/{}", pid);
+    std::fs::create_dir_all(&path)?;
+    std::fs::write(format!("{}/memory.max", path), bytes.to_string())?;
+    Ok(format!("ram limit {}MB set for pid {}", bytes / 1_000_000, pid))
+    }
+
+    "cpuset_assign" => {
+        let pid = request["pid"].as_i64().ok_or("missing pid")?;
+        let cores = request["cores"].as_str().ok_or("missing cores")?;
+        let path = format!("/sys/fs/cgroup/aios/{}", pid);
+        std::fs::create_dir_all(&path)?;
+        std::fs::write(format!("{}/cpuset.cpus", path), cores)?;
+        std::fs::write(format!("{}/cgroup.procs", path), pid.to_string())?;
+        Ok(format!("pid {} assigned to cores {}", pid, cores))
+    }
+
+    "tc_priority" => {
+        let interface = request["interface"].as_str().ok_or("missing interface")?;
+        let class = request["class"].as_str().ok_or("missing class")?;
+        // Add traffic class rule
+        Command::new("tc")
+            .args(["class", "add", "dev", interface,
+                "parent", "1:", "classid", class,
+                "htb", "rate", "100mbit", "prio", "1"])
+            .output()?;
+        Ok(format!("tc priority set on {} class {}", interface, class))
+    }
 
         _ => Err(format!("unknown action: {}", action).into())
     }

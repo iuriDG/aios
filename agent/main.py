@@ -1,6 +1,7 @@
 import time
 import json
 import os
+from datetime import datetime
 import subprocess
 from observer import observe
 from decision_engine import decide
@@ -8,6 +9,8 @@ from llm_interface import ask, is_ollama_running
 from profile_store import init_db, get_user_pref, set_user_pref, log_action, cleanup_audit_log
 from config import LOOP_CADENCE, DRY_RUN, SOCKET_PATH, READY_FILE
 from ipc import send_actions
+from network_monitor import start as start_network_monitor
+from network_monitor import stop as stop_network_monitor
 
 def send_to_helper(actions: list, gear: str, mode: str):
     results = send_actions(actions)
@@ -44,7 +47,10 @@ def send_to_helper(actions: list, gear: str, mode: str):
 def run():
     init_db()
     cleanup_audit_log()
-    print("AIOS agent starting...")
+    start_network_monitor()
+    os.makedirs("/run/aios", exist_ok=True)
+    with open("/run/aios/ready", "w") as f:
+        f.write("ready")
     print(f"Dry run: {DRY_RUN}")
     print(f"Ollama available: {is_ollama_running()}")
 
@@ -88,6 +94,18 @@ def run():
             # Notify user if mismatch detected
             if decision.get("prompt_user") and decision.get("prompt_message"):
                 send_notification(decision["prompt_message"])
+                # Write prompt to file so user response can be picked up
+                with open("/run/aios/prompt.txt", "w") as f:
+                    f.write(decision["prompt_message"])
+
+            # Check if user responded to a previous prompt
+            if os.path.exists("/run/aios/prompt_reply.txt"):
+                with open("/run/aios/prompt_reply.txt") as f:
+                    reply = f.read().strip().lower()
+                if reply in ["gaming", "dev", "browsing", "idle"]:
+                    set_user_pref("prompt_reply_mode", reply)
+                    set_user_pref("prompt_reply_set_at", datetime.now().isoformat())
+                os.remove("/run/aios/prompt_reply.txt")
 
             # Send actions to helper
             if actions:
@@ -105,6 +123,11 @@ def run():
         except Exception as e:
             print(f"[ERROR] {e}")
             time.sleep(5)
+        
+        except KeyboardInterrupt:
+            stop_network_monitor()
+            print("\nAIOS agent stopped")
+            break
 
 if __name__ == "__main__":
     run()

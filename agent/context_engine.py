@@ -1,135 +1,113 @@
-import sqlite3
+import psutil
 import json
-from datetime import datetime
+from profile_store import get_app_profile, get_user_pref
 
-DB_PATH = "profiles/aios.db"
+KNOWN_GAMES = [
+    "steam", "steamwebhelper", "gameoverlayui",
+    "wine", "proton", "lutris", "heroic"
+]
 
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+KNOWN_DEV = [
+    "code", "vscodium", "nvim", "vim", "emacs",
+    "gcc", "g++", "clang", "cargo", "rustc",
+    "make", "cmake", "python3", "node", "docker",
+    "java", "gradle", "maven"
+]
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS app_profiles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            binary_name TEXT NOT NULL,
-            mode TEXT NOT NULL,
-            cpu_avg REAL,
-            ram_avg_mb REAL,
-            gpu_avg REAL,
-            disk_read_avg_mb REAL,
-            disk_write_avg_mb REAL,
-            user_override INTEGER DEFAULT 0,
-            override_rules TEXT,
-            last_updated TEXT,
-            session_count INTEGER DEFAULT 0,
-            UNIQUE(binary_name, mode)
-        )
-    """)
+KNOWN_BROWSER = [
+    "firefox", "chrome", "chromium", "brave",
+    "opera", "vivaldi", "edge"
+]
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS user_profile (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            key TEXT UNIQUE NOT NULL,
-            value TEXT NOT NULL
-        )
-    """)
+COMPILERS = [
+    "gcc", "g++", "clang", "rustc", "cargo",
+    "make", "cmake", "gradle", "maven", "go"
+]
 
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS audit_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT NOT NULL,
-            action TEXT NOT NULL,
-            target TEXT,
-            mode TEXT,
-            gear TEXT,
-            result TEXT
-        )
-    """)
+def get_running_process_names(snapshot):
+    return [p["name"].lower() for p in snapshot.get("processes", [])]
 
-    conn.commit()
-    conn.close()
+def get_top_cpu_process(snapshot):
+    procs = snapshot.get("processes", [])
+    if not procs:
+        return None
+    return procs[0]["name"].lower()
 
-def upsert_app_profile(binary_name, mode, metrics):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+def is_compiling(process_names):
+    return any(c in process_names for c in COMPILERS)
 
-    c.execute("""
-        INSERT INTO app_profiles 
-            (binary_name, mode, cpu_avg, ram_avg_mb, gpu_avg,
-             disk_read_avg_mb, disk_write_avg_mb, last_updated, session_count)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-        ON CONFLICT(binary_name, mode) DO UPDATE SET
-            cpu_avg = (cpu_avg * session_count + excluded.cpu_avg) / (session_count + 1),
-            ram_avg_mb = (ram_avg_mb * session_count + excluded.ram_avg_mb) / (session_count + 1),
-            gpu_avg = (gpu_avg * session_count + excluded.gpu_avg) / (session_count + 1),
-            disk_read_avg_mb = (disk_read_avg_mb * session_count + excluded.disk_read_avg_mb) / (session_count + 1),
-            disk_write_avg_mb = (disk_write_avg_mb * session_count + excluded.disk_write_avg_mb) / (session_count + 1),
-            last_updated = excluded.last_updated,
-            session_count = session_count + 1
-    """, (
-        binary_name, mode,
-        metrics.get("cpu_avg", 0),
-        metrics.get("ram_avg_mb", 0),
-        metrics.get("gpu_avg", 0),
-        metrics.get("disk_read_avg_mb", 0),
-        metrics.get("disk_write_avg_mb", 0),
-        datetime.now().isoformat()
-    ))
+def gpu_load(snapshot):
+    return snapshot.get("gpu", {}).get("utilisation_pct", 0)
 
-    conn.commit()
-    conn.close()
+def classify(snapshot) -> dict:
+    process_names = get_running_process_names(snapshot)
+    top_cpu = get_top_cpu_process(snapshot)
+    gpu = gpu_load(snapshot)
+    cpu_total = snapshot.get("cpu", {}).get("percent_total", 0)
 
-def set_user_override(binary_name, mode, rules: dict):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-        UPDATE app_profiles
-        SET user_override = 1, override_rules = ?
-        WHERE binary_name = ? AND mode = ?
-    """, (json.dumps(rules), binary_name, mode))
-    conn.commit()
-    conn.close()
+    scores = {
+        "gaming":   0,
+        "dev":      0,
+        "browsing": 0,
+        "idle":     0
+    }
 
-def get_app_profile(binary_name, mode):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-        SELECT * FROM app_profiles
-        WHERE binary_name = ? AND mode = ?
-    """, (binary_name, mode))
-    row = c.fetchone()
-    conn.close()
-    return row
+    # Gaming signals
+    if gpu > 60:
+        scores["gaming"] += 40
+    if any(g in process_names for g in KNOWN_GAMES):
+        scores["gaming"] += 40
+    if top_cpu in KNOWN_GAMES:
+        scores["gaming"] += 20
 
-def set_user_pref(key, value):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO user_profile (key, value)
-        VALUES (?, ?)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    """, (key, str(value)))
-    conn.commit()
-    conn.close()
+    # Dev signals
+    if is_compiling(process_names):
+        scores["dev"] += 50
+    if any(d in process_names for d in KNOWN_DEV):
+        scores["dev"] += 30
+    if top_cpu in KNOWN_DEV:
+        scores["dev"] += 20
 
-def get_user_pref(key):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT value FROM user_profile WHERE key = ?", (key,))
-    row = c.fetchone()
-    conn.close()
-    return row[0] if row else None
+    # Browsing signals
+    if any(b in process_names for b in KNOWN_BROWSER):
+        scores["browsing"] += 40
+    if top_cpu in KNOWN_BROWSER:
+        scores["browsing"] += 30
 
-def log_action(action, target, mode, gear, result):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO audit_log (timestamp, action, target, mode, gear, result)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (datetime.now().isoformat(), action, target, mode, gear, result))
-    conn.commit()
-    conn.close()
+    # Idle signals
+    idle_threshold = int(get_user_pref("idle_threshold_minutes") or 5)
+    if cpu_total < 5 and gpu < 5:
+        scores["idle"] += 60
+
+    # Weight scores using existing profiles
+    for process in snapshot.get("processes", []):
+        name = process["name"].lower()
+        for mode in ["gaming", "dev", "browsing"]:
+            profile = get_app_profile(name, mode)
+            if profile:
+                scores[mode] = scores.get(mode, 0) + 15
+
+    # Winner
+    mode = max(scores, key=scores.get)
+    confidence = scores[mode]
+
+    return {
+        "mode": mode,
+        "confidence": confidence,
+        "scores": scores,
+        "top_cpu_process": top_cpu,
+        "compiling": is_compiling(process_names),
+        "gpu_active": gpu > 30
+    }
 
 if __name__ == "__main__":
-    init_db()
-    print("DB initialised at", DB_PATH)
+    fake_snapshot = {
+        "cpu": {"percent_total": 45},
+        "gpu": {"utilisation_pct": 75},
+        "processes": [
+            {"name": "steam", "cpu_pct": 30, "ram_mb": 400},
+            {"name": "firefox", "cpu_pct": 10, "ram_mb": 300},
+        ]
+    }
+    result = classify(fake_snapshot)
+    print(json.dumps(result, indent=2))
