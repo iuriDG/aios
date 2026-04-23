@@ -58,31 +58,38 @@ def parse_response(raw: str) -> list:
 
 def ask(snapshot: dict, mode: str, gear: str) -> list:
     prompt = build_prompt(snapshot, mode, gear)
+    max_retries = 3
 
-    try:
-        response = requests.post(OLLAMA_URL, json={
-            "model": MODEL,
-            "system": SYSTEM_PROMPT,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "temperature": 0.1,  # Low temp - we want consistent decisions
-                "num_predict": 512
-            }
-        }, timeout=30)
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(OLLAMA_URL, json={
+                "model": MODEL,
+                "system": SYSTEM_PROMPT,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.1,
+                    "num_predict": 512
+                }
+            }, timeout=30)
 
-        raw = response.json().get("response", "")
-        actions = parse_response(raw)
-        return actions
+            raw = response.json().get("response", "")
+            actions = parse_response(raw)
 
-    except requests.exceptions.ConnectionError:
-        # Ollama not running - fall back to rule-based decision engine
-        print("Ollama unavailable - falling back to rule-based decisions")
-        return []
+            if actions:
+                return actions
 
-    except Exception as e:
-        print(f"LLM error: {e}")
-        return []
+            print(f"[LLM] Empty response on attempt {attempt + 1} - retrying")
+
+        except requests.exceptions.ConnectionError:
+            print("Ollama unavailable - falling back to rule-based decisions")
+            return []
+
+        except Exception as e:
+            print(f"[LLM] Error on attempt {attempt + 1}: {e}")
+
+    print("[LLM] All retries failed - falling back to rule-based decisions")
+    return []
 
 def is_ollama_running() -> bool:
     try:

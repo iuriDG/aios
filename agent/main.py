@@ -1,10 +1,11 @@
 import time
 import json
+import os
 import subprocess
 from observer import observe
 from decision_engine import decide
 from llm_interface import ask, is_ollama_running
-from profile_store import init_db, get_user_pref, set_user_pref, log_action
+from profile_store import init_db, get_user_pref, set_user_pref, log_action, cleanup_audit_log
 from config import LOOP_CADENCE, DRY_RUN, SOCKET_PATH, READY_FILE
 from ipc import send_actions
 
@@ -42,6 +43,7 @@ def send_to_helper(actions: list, gear: str, mode: str):
 
 def run():
     init_db()
+    cleanup_audit_log()
     print("AIOS agent starting...")
     print(f"Dry run: {DRY_RUN}")
     print(f"Ollama available: {is_ollama_running()}")
@@ -50,6 +52,10 @@ def run():
     history = []
 
     while True:
+        if os.path.exists("/run/aios/paused"):
+            print("[LOOP] Paused")
+            time.sleep(10)
+            continue
         try:
             # Observe
             snapshot = observe()

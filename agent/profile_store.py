@@ -6,6 +6,8 @@ from config import DB_PATH
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
     c = conn.cursor()
 
     c.execute("""
@@ -127,6 +129,15 @@ def log_action(action, target, mode, gear, result):
         INSERT INTO audit_log (timestamp, action, target, mode, gear, result)
         VALUES (?, ?, ?, ?, ?, ?)
     """, (datetime.now().isoformat(), action, target, mode, gear, result))
+    conn.commit()
+    conn.close()
+
+def cleanup_audit_log(days=30):
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""
+        DELETE FROM audit_log 
+        WHERE timestamp < datetime('now', ?)
+    """, (f'-{days} days',))
     conn.commit()
     conn.close()
 

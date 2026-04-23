@@ -16,6 +16,16 @@ NICE_NORMAL     =   0
 NICE_LOW        =  10
 NICE_BACKGROUND =  19
 
+def deduplicate(actions: list) -> list:
+    seen = set()
+    result = []
+    for a in actions:
+        key = (a.get("action"), a.get("pid"), a.get("unit"))
+        if not key in seen:
+            seen.add(key)
+            result.append(a)
+    return result
+
 def is_protected(process_name):
     return any(p in process_name.lower() for p in PROTECTED)
 
@@ -153,7 +163,8 @@ def decide(snapshot) -> dict:
             target=str(a.get("pid") or a.get("unit") or "system"),
             mode=mode,
             gear=gear,
-            result="pending"
+            result="pending",
+            actions = deduplicate(actions)
         )
 
     return {
