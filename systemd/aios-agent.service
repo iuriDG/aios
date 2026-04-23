@@ -1,0 +1,16 @@
+[Unit]
+Description=AIOS Agent
+After=aios-watchdog.service
+Before=display-manager.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/aios-agent
+Restart=on-failure
+User=aios
+Group=aios
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

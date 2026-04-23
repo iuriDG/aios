@@ -1,0 +1,16 @@
+[Unit]
+Description=AIOS Watchdog
+After=aios-helper.service
+Before=aios-agent.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/aios-watchdog
+Restart=on-failure
+User=root
+Group=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
