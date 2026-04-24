@@ -2,6 +2,8 @@ import sqlite3
 import json
 from datetime import datetime
 from config import DB_PATH
+from config import DB_PATH, AUDIT_LOG_RETENTION_DAYS
+
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -131,7 +133,7 @@ def log_action(action, target, mode, gear, result):
     conn.commit()
     conn.close()
 
-def cleanup_audit_log(days=30):
+def cleanup_audit_log(days=AUDIT_LOG_RETENTION_DAYS):
     conn = sqlite3.connect(DB_PATH)
     conn.execute("""
         DELETE FROM audit_log 

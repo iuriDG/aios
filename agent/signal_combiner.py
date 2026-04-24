@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timedelta
 from profile_store import get_user_pref, set_user_pref
 from context_engine import classify
-from config import CONFIDENCE_THRESHOLD, MANUAL_MODE_EXPIRY_MINUTES, SUPPRESS_PROMPT_MINUTES
+from config import CONFIDENCE_THRESHOLD, MANUAL_MODE_EXPIRY_MINUTES, SUPPRESS_PROMPT_MINUTES, PROMPT_REPLY_EXPIRY_HOURS
 
 def get_manual_mode():
     mode = get_user_pref("manual_mode")
@@ -23,7 +23,7 @@ def get_prompt_reply():
         return None
     set_at = datetime.fromisoformat(reply_time)
     # Prompt reply valid for one session only - 4 hours
-    if datetime.now() - set_at > timedelta(hours=4):
+    if datetime.now() - set_at > timedelta(hours=PROMPT_REPLY_EXPIRY_HOURS):
         set_user_pref("prompt_reply_mode", "")
         return None
     return reply

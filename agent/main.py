@@ -10,7 +10,7 @@ from profile_store import init_db, get_user_pref, set_user_pref, log_action, cle
 from ipc import send_actions
 from network_monitor import start as start_network_monitor
 from network_monitor import stop as stop_network_monitor
-from config import LOOP_CADENCE, DRY_RUN, READY_FILE, OLLAMA_MODEL
+from config import LOOP_CADENCE, DRY_RUN, READY_FILE, OLLAMA_MODEL, PAUSED_FILE, PROMPT_FILE, PROMPT_REPLY_FILE
 
 
 def send_to_helper(actions: list, gear: str, mode: str):
@@ -50,7 +50,7 @@ def run():
     history = []
 
     while True:
-        if os.path.exists("/run/aios/paused"):
+        if os.path.exists(PAUSED_FILE):
             print("[LOOP] Paused")
             time.sleep(10)
             continue
@@ -81,10 +81,10 @@ def run():
 
             if decision.get("prompt_user") and decision.get("prompt_message"):
                 send_notification(decision["prompt_message"])
-                with open("/run/aios/prompt.txt", "w") as f:
+                with open(PROMPT_FILE, "w") as f:
                     f.write(decision["prompt_message"])
 
-            if os.path.exists("/run/aios/prompt_reply.txt"):
+            if os.remove(PROMPT_REPLY_FILE):
                 with open("/run/aios/prompt_reply.txt") as f:
                     reply = f.read().strip().lower()
                 if reply in ["gaming", "dev", "browsing", "idle"]:

@@ -81,3 +81,36 @@ COMPILERS = [
     "gcc", "g++", "clang", "rustc", "cargo",
     "make", "cmake", "gradle", "maven", "go"
 ]
+
+# Paths
+IPC_SECRET_PATH     = "/etc/aios/ipc.secret"
+OBSERVER_LOG        = "/var/log/aios/observer.log"
+PAUSED_FILE         = "/run/aios/paused"
+PROMPT_FILE         = "/run/aios/prompt.txt"
+PROMPT_REPLY_FILE   = "/run/aios/prompt_reply.txt"
+
+# Process observer
+PROCESS_PID_FILTER  = 10
+PROCESS_LIMIT       = 20
+
+# LLM
+LLM_RAM_HEADROOM_GB = 0.5
+LLM_MAX_RETRIES     = 3
+LLM_MAX_TOKENS      = 512
+LLM_TEMPERATURE     = 0.1
+
+# Network monitor
+NETWORK_PING_INTERVAL_SECS = 30
+NETWORK_PING_COUNT         = 5
+
+# Profile store
+AUDIT_LOG_RETENTION_DAYS = 30
+
+# Signal combiner
+PROMPT_REPLY_EXPIRY_HOURS = 4
+
+# Watchdog
+WATCHDOG_CHECK_INTERVAL_SECS = 5
+WATCHDOG_LOG_TAIL_LINES      = 500
+
+NOISE_PROCESSES = ["update", "sync", "backup", "index", "tracker"]

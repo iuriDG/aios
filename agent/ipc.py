@@ -4,11 +4,11 @@ import os
 import time
 import hashlib
 import hmac
-from config import SOCKET_PATH, DRY_RUN
 
 # Shared secret between agent and helper
 # Generated at first run and stored in /etc/aios/secret
-SECRET_PATH = "/etc/aios/ipc.secret"
+from config import SOCKET_PATH, DRY_RUN, IPC_SECRET_PATH
+SECRET_PATH = IPC_SECRET_PATH
 
 def get_secret() -> bytes:
     if os.path.exists(SECRET_PATH):

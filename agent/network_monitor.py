@@ -3,6 +3,7 @@ import statistics
 import threading
 import time
 from profile_store import get_user_pref, set_user_pref
+from config import NETWORK_PING_INTERVAL_SECS, NETWORK_PING_COUNT
 
 _monitor_thread = None
 _running = False
@@ -10,7 +11,7 @@ _running = False
 def measure_ping(host: str, count: int = 5) -> float:
     try:
         out = subprocess.check_output(
-            ["ping", "-c", str(count), host],
+            ["ping", "-c", str(count or NETWORK_PING_COUNT), host],
             timeout=15
         ).decode()
 
@@ -100,7 +101,7 @@ def monitor_loop():
             apply_throttle(False)
             throttling = False
 
-        time.sleep(30)
+        time.sleep(NETWORK_PING_INTERVAL_SECS)
 
 def start():
     global _monitor_thread, _running

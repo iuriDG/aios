@@ -9,7 +9,7 @@ const AGENT_BINARY: &str = "/opt/aios-agent/main.py";
 const HELPER_BINARY: &str = "/usr/local/bin/aios-helper";
 const READY_FILE: &str = "/run/aios/ready";
 const TAMPER_LOG: &str = "/var/log/aios/tamper.log";
-const CHECK_INTERVAL_SECS: u64 = 5;
+const CHECK_INTERVAL_SECS: u64 = 5; // configured via AIOS_WATCHDOG_INTERVAL env var
 
 fn main() {
     fs::create_dir_all("/run/aios").expect("Failed to create /run/aios");
@@ -61,7 +61,11 @@ fn main() {
             log_tamper("helper process died unexpectedly");
         }
 
-        thread::sleep(Duration::from_secs(CHECK_INTERVAL_SECS));
+        let interval = std::env::var("AIOS_WATCHDOG_INTERVAL")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(CHECK_INTERVAL_SECS);
+        thread::sleep(Duration::from_secs(interval));
     }
 }
 
@@ -105,7 +109,12 @@ fn restore_defaults() {
     // Renice PIDs that aios managed back to 0
     // Only read the last 500 lines to bound recovery time on large logs
     if let Ok(log) = fs::read_to_string("/var/log/aios/audit.log") {
-        for line in log.lines().rev().take(500) {
+        let tail_lines: usize = std::env::var("AIOS_WATCHDOG_LOG_TAIL")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(500);
+
+        for line in log.lines().rev().take(tail_lines) {
             if let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) {
                 if entry["action"] == "renice" {
                     if let Some(pid) = entry["target"].as_str() {

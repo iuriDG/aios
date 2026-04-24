@@ -3,7 +3,9 @@ import subprocess
 from profile_store import get_user_pref, set_user_pref, log_action
 from signal_combiner import resolve
 from power_manager import get_power_recommendation
-from config import (PROTECTED_PROCESSES, NICE_REALTIME, NICE_HIGH, NICE_NORMAL, NICE_LOW, NICE_BACKGROUND)
+from config import (NOISE_PROCESSES, PROTECTED_PROCESSES, NICE_REALTIME, NICE_HIGH,
+                    NICE_NORMAL, NICE_LOW, NICE_BACKGROUND,
+                    KNOWN_GAMES, KNOWN_DEV, KNOWN_BROWSER, COMPILERS)
 
 PROTECTED = PROTECTED_PROCESSES
 
@@ -51,10 +53,10 @@ def build_gaming_actions(snapshot, gear):
         pid = p["pid"]
         if is_protected(name):
             continue
-        if any(g in name for g in ["steam", "wine", "proton", "game"]):
+        if any(g in name for g in KNOWN_GAMES + ["game"]):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_REALTIME})
             actions.append({"action": "cgroup_cpu_limit", "pid": pid, "quota": 90})
-        elif any(b in name for b in ["update", "sync", "backup", "index", "tracker"]):
+        elif any(b in name for b in NOISE_PROCESSES):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_BACKGROUND})
             if gear == "heavy":
                 actions.append({"action": "kill", "pid": pid, "signal": 19})
@@ -71,12 +73,12 @@ def build_dev_actions(snapshot, gear):
         pid = p["pid"]
         if is_protected(name):
             continue
-        if any(c in name for c in ["gcc", "g++", "cargo", "rustc", "make", "cmake", "clang"]):
+        if any(c in name for c in COMPILERS):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_HIGH})
             actions.append({"action": "cgroup_cpu_limit", "pid": pid, "quota": 70})
-        elif any(d in name for d in ["code", "nvim", "vim", "terminal", "node", "python"]):
+        if any(c in name for c in COMPILERS):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_NORMAL})
-        elif any(g in name for g in ["steam", "wine", "game"]):
+        elif any(g in name for g in KNOWN_GAMES):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_BACKGROUND})
     return actions
 
@@ -87,9 +89,9 @@ def build_browsing_actions(snapshot, gear):
         pid = p["pid"]
         if is_protected(name):
             continue
-        if any(b in name for b in ["firefox", "chrome", "chromium", "brave"]):
+        if any(b in name for b in KNOWN_BROWSER):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_NORMAL})
-        elif any(h in name for h in ["update", "backup", "sync", "index"]):
+        elif any(h in name for h in NOISE_PROCESSES):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_BACKGROUND})
     return actions
 
@@ -114,10 +116,10 @@ def build_transition_actions(snapshot, old_mode, new_mode) -> list:
         if is_protected(name):
             continue
         if old_mode == "gaming":
-            if any(g in name for g in ["steam", "wine", "proton"]):
+            if any(g in name for g in KNOWN_GAMES):
                 actions.append({"action": "renice", "pid": pid, "priority": NICE_LOW})
         elif old_mode == "dev":
-            if any(d in name for d in ["gcc", "cargo", "make"]):
+            if any(d in name for d in COMPILERS):
                 actions.append({"action": "renice", "pid": pid, "priority": NICE_NORMAL})
     actions.append({"action": "set_governor", "governor": "balanced"})
     return actions
