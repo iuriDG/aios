@@ -15,9 +15,7 @@ touch /var/log/aios/audit.log
 chattr +a /var/log/aios/audit.log
 
 # Build Rust binaries - use subshells so a failed build never leaves us in the wrong dir
-echo "Building helper and watchdog..."
-(cd helper && cargo build --release)
-(cd watchdog && cargo build --release)
+echo "Binaries should be pre-built - skipping cargo build"
 
 # Install binaries
 cp helper/target/release/aios-helper /usr/local/bin/

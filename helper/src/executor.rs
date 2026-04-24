@@ -130,6 +130,33 @@ pub fn execute(request: &Value) -> Result<String, Box<dyn std::error::Error>> {
             Ok(format!("tc priority set on {} class {}", interface, class))
         }
 
+        "read_gpu_stats" => {
+            let content = std::fs::read_to_string(
+                "/sys/kernel/debug/dri/1/amdgpu_pm_info"
+            )?;
+
+            let mut utilisation: f32 = 0.0;
+            let mut temp: f32 = 0.0;
+
+            for line in content.lines() {
+                if line.contains("GPU Load:") {
+                    if let Some(val) = line.split(':').nth(1) {
+                        utilisation = val.trim().replace("%", "").parse().unwrap_or(0.0);
+                    }
+                }
+                if line.contains("GPU Temperature:") {
+                    if let Some(val) = line.split(':').nth(1) {
+                        temp = val.trim().replace("C", "").trim().parse().unwrap_or(0.0);
+                    }
+                }
+            }
+
+            Ok(serde_json::json!({
+                "utilisation_pct": utilisation,
+                "temp_c": temp
+            }).to_string())
+        }
+
         _ => Err(format!("unknown action: {}", action).into())
     }
 }

@@ -7,6 +7,7 @@ const ALLOWED_ACTIONS: &[&str] = &[
     "cpuset_assign",
     "tc_priority",
     "set_governor",
+    "read_gpu_stats",
 ];
 
 pub fn is_allowed(action: &str) -> bool {

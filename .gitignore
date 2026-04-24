@@ -1,0 +1,18 @@
+# Rust build artifacts
+target/
+Cargo.lock
+
+# Python
+__pycache__/
+*.pyc
+venv/
+*.egg-info/
+
+# Runtime
+*.sock
+*.pid
+profiles/*.db
+
+# Secrets
+*.pem
+*.key

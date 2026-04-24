@@ -41,16 +41,19 @@ def get_nvidia_gpu() -> dict:
         return {}
 
 def get_integrated_gpu() -> dict:
-    # Intel and AMD integrated via sysfs
     try:
-        with open("/sys/class/drm/card0/device/gpu_busy_percent") as f:
-            usage = float(f.read().strip())
-        return {
-            "type": "integrated",
-            "utilisation_pct": usage,
-            "vram_used_mb": 0,
-            "vram_total_mb": 0
-        }
+        from ipc import send_action
+        result = send_action({"action": "read_gpu_stats", "signature": ""})
+        if result.get("success"):
+            data = json.loads(result["message"])
+            return {
+                "type": "amd_integrated",
+                "utilisation_pct": data.get("utilisation_pct", 0),
+                "temp_c": data.get("temp_c", 0),
+                "vram_used_mb": 0,
+                "vram_total_mb": 0
+            }
+        return {}
     except Exception:
         return {}
 

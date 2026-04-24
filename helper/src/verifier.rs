@@ -3,6 +3,7 @@ use std::fs;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use hex;
+use subtle::ConstantTimeEq;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -24,8 +25,7 @@ pub fn verify(request: &Value) -> bool {
         obj.remove("signature");
     }
 
-    // Sort keys before serializing to guarantee a stable HMAC body
-    // regardless of the order the agent sends fields
+    // Sort keys before serializing to guarantee stable HMAC body
     let body = match sorted_json(&payload) {
         Some(b) => b,
         None => return false
@@ -43,13 +43,9 @@ pub fn verify(request: &Value) -> bool {
     mac.update(body.as_bytes());
 
     let expected = hex::encode(mac.finalize().into_bytes());
-    hmac::subtle::ConstantTimeEq::ct_eq(
-        signature.as_bytes(),
-        expected.as_bytes()
-    ).into()
+    signature.as_bytes().ct_eq(expected.as_bytes()).into()
 }
 
-/// Serialize a JSON value with object keys sorted so the HMAC body is stable.
 fn sorted_json(value: &Value) -> Option<String> {
     match value {
         Value::Object(map) => {
