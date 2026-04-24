@@ -1,4 +1,9 @@
 import os
+import psutil
+
+TOTAL_RAM_GB = round(psutil.virtual_memory().total / 1e9, 1)
+LLM_RESERVED_GB = float(os.environ.get("AIOS_LLM_RESERVED_GB", round(TOTAL_RAM_GB * 0.4, 1)))
+
 
 # Base paths
 BASE_DIR        = os.path.dirname(os.path.abspath(__file__))

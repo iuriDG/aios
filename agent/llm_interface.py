@@ -28,7 +28,7 @@ Example output:
 """
 
 # Base URL derived from OLLAMA_URL so config is the single source of truth
-_OLLAMA_BASE = OLLAMA_URL.rsplit("/", 1)[0] if "/" in OLLAMA_URL else OLLAMA_URL
+_OLLAMA_BASE = "http://localhost:11434"
 
 def build_prompt(snapshot: dict, mode: str, gear: str) -> str:
     trimmed = {
@@ -60,6 +60,9 @@ def parse_response(raw: str) -> list:
         return []
 
 def ask(snapshot: dict, mode: str, gear: str) -> list:
+    if not has_enough_ram():
+        print("[LLM] Not enough RAM - using rule-based decisions")
+        return []
     prompt = build_prompt(snapshot, mode, gear)
     max_retries = 3
 
@@ -96,6 +99,13 @@ def ask(snapshot: dict, mode: str, gear: str) -> list:
 
     print("[LLM] All retries failed - falling back to rule-based decisions")
     return []
+
+def has_enough_ram() -> bool:
+    import psutil
+    from profile_store import get_user_pref
+    required = float(get_user_pref("hw_llm_ram_gb") or 3.5)
+    available = psutil.virtual_memory().available / 1e9
+    return available >= required + 0.5
 
 def is_ollama_running() -> bool:
     try:

@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import subprocess
+import psutil
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'agent'))
 
 from profile_store import set_user_pref
@@ -96,8 +97,14 @@ def run():
     set_user_pref("hw_gpu_type", gpu.get("type", "unknown"))
 
     # Inference benchmark
-    print("\nBenchmarking CPU inference...")
+    print("Benchmarking CPU inference...")
+    before_ram = psutil.virtual_memory().available
     cpu_time = benchmark_cpu_inference()
+    after_ram = psutil.virtual_memory().available
+    llm_ram_used = round((before_ram - after_ram) / 1e9, 1)
+    if llm_ram_used > 0:
+        set_user_pref("hw_llm_ram_gb", str(llm_ram_used))
+        print(f"LLM RAM usage: {llm_ram_used}GB")
     print(f"CPU inference time: {cpu_time:.2f}s")
     set_user_pref("hw_cpu_inference_secs", str(round(cpu_time, 3)))
 
