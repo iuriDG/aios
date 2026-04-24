@@ -84,13 +84,13 @@ def run():
                 with open(PROMPT_FILE, "w") as f:
                     f.write(decision["prompt_message"])
 
-            if os.remove(PROMPT_REPLY_FILE):
-                with open("/run/aios/prompt_reply.txt") as f:
+            if os.path.exists(PROMPT_REPLY_FILE):
+                with open(PROMPT_REPLY_FILE) as f:
                     reply = f.read().strip().lower()
                 if reply in ["gaming", "dev", "browsing", "idle"]:
                     set_user_pref("prompt_reply_mode", reply)
                     set_user_pref("prompt_reply_set_at", datetime.now().isoformat())
-                os.remove("/run/aios/prompt_reply.txt")
+                os.remove(PROMPT_REPLY_FILE)
 
             if actions:
                 print(f"[LOOP] Mode: {mode} | Gear: {gear} | Actions: {len(actions)} | Source: {decision['source']}")
