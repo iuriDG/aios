@@ -139,11 +139,13 @@
           <div class="stat-value">{state.ram_pct?.toFixed(1)}%</div>
           <div class="bar"><div class="bar-fill ram" style="width: {state.ram_pct}%"></div></div>
         </div>
+        {#if state.gpu_pct > 0}
         <div class="stat-card">
           <div class="stat-label">GPU</div>
           <div class="stat-value">{state.gpu_pct?.toFixed(1)}%</div>
           <div class="bar"><div class="bar-fill gpu" style="width: {state.gpu_pct}%"></div></div>
         </div>
+        {/if}
         <div class="stat-card">
           <div class="stat-label">Available RAM</div>
           <div class="stat-value">{state.available_ram_gb?.toFixed(1)} GB</div>
@@ -201,23 +203,27 @@
   {:else if activeTab === 'profiles'}
     <section class="tab-content">
       <div class="section-title">App profiles ({profiles.length})</div>
-      <table class="process-table">
-        <thead>
-          <tr><th>App</th><th>Mode</th><th>CPU avg</th><th>RAM avg</th><th>Sessions</th><th>Override</th></tr>
-        </thead>
-        <tbody>
-          {#each profiles as p}
-            <tr class="{p.user_override ? 'override-row' : ''}">
-              <td>{p.binary_name}</td>
-              <td>{p.mode}</td>
-              <td>{p.cpu_avg?.toFixed(1)}%</td>
-              <td>{p.ram_avg_mb?.toFixed(0)} MB</td>
-              <td>{p.session_count}</td>
-              <td>{p.user_override ? '🔒' : ''}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+      {#if profiles.length === 0}
+        <div class="empty-state">No profiles yet — the agent will build these as apps run.</div>
+      {:else}
+        <table class="process-table">
+          <thead>
+            <tr><th>App</th><th>Mode</th><th>CPU avg</th><th>RAM avg</th><th>Sessions</th><th>Override</th></tr>
+          </thead>
+          <tbody>
+            {#each profiles as p}
+              <tr class="{p.user_override ? 'override-row' : ''}">
+                <td>{p.binary_name}</td>
+                <td>{p.mode}</td>
+                <td>{p.cpu_avg?.toFixed(1)}%</td>
+                <td>{p.ram_avg_mb?.toFixed(0)} MB</td>
+                <td>{p.session_count}</td>
+                <td>{p.user_override ? '🔒' : ''}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
     </section>
 
   <!-- Audit Tab -->
@@ -267,6 +273,10 @@
 </main>
 
 <style>
+  :global(html) {
+    color-scheme: dark;
+  }
+
   :global(body) {
     margin: 0;
     background: #0f0f0f;
@@ -363,7 +373,7 @@
 
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 1rem;
     margin-bottom: 1.5rem;
   }
@@ -472,4 +482,11 @@
   }
 
   .clear-btn:hover { color: #f87171; border-color: #f87171; }
+
+  .empty-state {
+    color: #555;
+    font-size: 0.9rem;
+    padding: 2rem 0;
+    text-align: center;
+  }
 </style>
