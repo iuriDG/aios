@@ -6,7 +6,7 @@ Before=display-manager.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /opt/aios-agent/main.py
+ExecStart=/usr/bin/python3 -u /opt/aios-agent/main.py
 Restart=on-failure
 RestartSec=5
 StartLimitIntervalSec=60
