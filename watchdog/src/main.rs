@@ -5,7 +5,7 @@ use std::fs;
 use std::collections::HashMap;
 use sha2::{Sha256, Digest};
 
-const AGENT_BINARY: &str = "/usr/local/bin/aios-agent";
+const AGENT_BINARY: &str = "/opt/aios-agent/main.py";
 const HELPER_BINARY: &str = "/usr/local/bin/aios-helper";
 const READY_FILE: &str = "/run/aios/ready";
 const TAMPER_LOG: &str = "/var/log/aios/tamper.log";

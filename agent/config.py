@@ -2,8 +2,8 @@ import os
 
 # Base paths
 BASE_DIR        = os.path.dirname(os.path.abspath(__file__))
-PROFILES_DIR    = os.environ.get("AIOS_PROFILES_DIR", os.path.join(BASE_DIR, "..", "profiles"))
-DB_PATH         = os.path.join(PROFILES_DIR, "aios.db")
+PROFILES_DIR    = os.environ.get("AIOS_PROFILES_DIR", os.path.join(BASE_DIR, "profiles"))
+DB_PATH = os.path.join(PROFILES_DIR, "aios.db")
 LOG_PATH        = os.environ.get("AIOS_LOG_PATH", "/var/log/aios/agent.log")
 SOCKET_PATH     = os.environ.get("AIOS_SOCKET_PATH", "/run/aios/helper.sock")
 READY_FILE      = "/run/aios/ready"

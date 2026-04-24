@@ -9,7 +9,7 @@ from gpu_observer import get_gpu
 
 
 logging.basicConfig(
-    filename='observer.log',
+    filename='/var/log/aios/observer.log',
     level=logging.INFO,
     format='%(asctime)s %(message)s'
 )
