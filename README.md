@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="images/aios.png" alt="Your project description" width="400">
+</p>
+
+
 # AIOS - AI Operating System Layer
 
 An AI-driven process orchestration layer that sits on top of Linux.
