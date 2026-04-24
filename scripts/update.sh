@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 echo "Updating AIOS..."
 
@@ -11,9 +11,9 @@ systemctl stop aios-watchdog
 cd /opt/aios
 git pull origin main
 
-# Rebuild Rust binaries
-cd helper && cargo build --release && cd ..
-cd watchdog && cargo build --release && cd ..
+# Rebuild Rust binaries - subshells keep cwd safe if a build fails
+(cd helper && cargo build --release)
+(cd watchdog && cargo build --release)
 
 # Install new binaries
 cp helper/target/release/aios-helper /usr/local/bin/

@@ -1,16 +1,24 @@
 [Unit]
 Description=AIOS Agent
 After=aios-watchdog.service
+Requires=aios-watchdog.service aios-helper.service
 Before=display-manager.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/aios-agent
+ExecStart=/usr/bin/python3 /opt/aios-agent/main.py
 Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=3
 User=aios
 Group=aios
+WorkingDirectory=/opt/aios-agent
+Environment=PYTHONPATH=/opt/aios-agent
 StandardOutput=journal
 StandardError=journal
+PrivateTmp=true
+ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target

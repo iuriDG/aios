@@ -47,7 +47,7 @@ def get_cpu_info() -> dict:
             "cores_logical": psutil.cpu_count(logical=True),
             "freq_max_mhz": psutil.cpu_freq().max if psutil.cpu_freq() else 0
         }
-    except:
+    except Exception:
         return {}
 
 def get_gpu_info() -> dict:
@@ -60,7 +60,7 @@ def get_gpu_info() -> dict:
         import json
         data = json.loads(out)
         return {"type": "amd_rocm", "data": data}
-    except:
+    except Exception:
         pass
 
     # Try nvidia-smi
@@ -71,7 +71,7 @@ def get_gpu_info() -> dict:
             timeout=5
         )
         return {"type": "nvidia", "data": out.decode().strip()}
-    except:
+    except Exception:
         pass
 
     return {"type": "integrated_or_unknown"}

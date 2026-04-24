@@ -28,7 +28,10 @@ def ask(question, options=None, multi=False):
                 pass
             print("Invalid choice - try again")
     else:
-        return input("> ").strip()
+        try:
+            return input("> ").strip()
+        except EOFError:
+            return ""
 
 def run():
     init_db()

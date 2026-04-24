@@ -24,10 +24,11 @@ pub fn verify(request: &Value) -> bool {
         obj.remove("signature");
     }
 
-    // Sort keys and serialize
-    let body = match serde_json::to_string(&payload) {
-        Ok(b) => b,
-        Err(_) => return false
+    // Sort keys before serializing to guarantee a stable HMAC body
+    // regardless of the order the agent sends fields
+    let body = match sorted_json(&payload) {
+        Some(b) => b,
+        None => return false
     };
 
     let secret = get_secret();
@@ -35,8 +36,10 @@ pub fn verify(request: &Value) -> bool {
         return false;
     }
 
-    let mut mac = HmacSha256::new_from_slice(&secret)
-        .expect("HMAC init failed");
+    let mut mac = match HmacSha256::new_from_slice(&secret) {
+        Ok(m) => m,
+        Err(_) => return false
+    };
     mac.update(body.as_bytes());
 
     let expected = hex::encode(mac.finalize().into_bytes());
@@ -44,4 +47,24 @@ pub fn verify(request: &Value) -> bool {
         signature.as_bytes(),
         expected.as_bytes()
     ).into()
+}
+
+/// Serialize a JSON value with object keys sorted so the HMAC body is stable.
+fn sorted_json(value: &Value) -> Option<String> {
+    match value {
+        Value::Object(map) => {
+            let mut sorted: Vec<(&String, &Value)> = map.iter().collect();
+            sorted.sort_by_key(|(k, _)| *k);
+            let mut out = String::from("{");
+            for (i, (k, v)) in sorted.iter().enumerate() {
+                if i > 0 { out.push(','); }
+                out.push_str(&serde_json::to_string(k).ok()?);
+                out.push(':');
+                out.push_str(&sorted_json(v)?);
+            }
+            out.push('}');
+            Some(out)
+        }
+        _ => serde_json::to_string(value).ok()
+    }
 }

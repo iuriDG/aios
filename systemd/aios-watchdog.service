@@ -1,16 +1,22 @@
 [Unit]
 Description=AIOS Watchdog
 After=aios-helper.service
+Requires=aios-helper.service
 Before=aios-agent.service
 
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/aios-watchdog
 Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=3
 User=root
 Group=root
 StandardOutput=journal
 StandardError=journal
+PrivateTmp=true
+ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target

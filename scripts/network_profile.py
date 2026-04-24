@@ -19,9 +19,14 @@ def measure_ping(host: str, count: int = 20) -> dict:
 
         times = []
         for line in out.splitlines():
-            if "time=" in line:
-                t = float(line.split("time=")[1].split()[0])
+            if "time=" not in line:
+                continue
+            try:
+                part = line.split("time=")[1]
+                t = float(part.split()[0])
                 times.append(t)
+            except (IndexError, ValueError):
+                continue
 
         if not times:
             return {}
@@ -38,7 +43,6 @@ def measure_ping(host: str, count: int = 20) -> dict:
         return {}
 
 def measure_bandwidth() -> dict:
-    # Use curl to estimate download speed
     try:
         start = time.time()
         subprocess.check_output(
@@ -71,6 +75,7 @@ def run():
                   f"jitter {result['jitter_ms']}ms")
             pings.append(result["avg_ms"])
 
+    baseline_ping = None
     if pings:
         baseline_ping = round(statistics.mean(pings), 2)
         set_user_pref("network_baseline_ping_ms", str(baseline_ping))
@@ -85,7 +90,11 @@ def run():
     # Primary app
     print("\nWhich app needs network priority?")
     print("Examples: firefox, steam, zoom, vscode")
-    primary = input("> ").strip().lower()
+    try:
+        primary = input("> ").strip().lower()
+    except EOFError:
+        primary = ""
+
     if primary:
         set_user_pref("network_priority_app", primary)
 
@@ -93,19 +102,22 @@ def run():
         print("  1. low    - barely noticeable")
         print("  2. medium - some slowdown acceptable")
         print("  3. high   - background apps can be heavily throttled")
+        impact_options = ["low", "medium", "high"]
         while True:
             try:
-                pick = int(input("> ")) - 1
-                impact = ["low", "medium", "high"][pick]
-                set_user_pref("network_impact_tolerance", impact)
-                break
-            except (ValueError, IndexError):
+                raw = int(input("> ")) - 1
+                if 0 <= raw < len(impact_options):
+                    impact = impact_options[raw]
+                    set_user_pref("network_impact_tolerance", impact)
+                    break
+                print("Enter 1, 2 or 3")
+            except (ValueError, EOFError):
                 print("Enter 1, 2 or 3")
 
         # Set ping threshold - alert if primary app latency exceeds this
-        threshold = baseline_ping * 2 if pings else 100
-        set_user_pref("network_ping_threshold_ms", str(round(threshold, 2)))
-        print(f"\nPing alert threshold set to {round(threshold, 2)}ms")
+        threshold = round(baseline_ping * 2, 2) if baseline_ping is not None else 100
+        set_user_pref("network_ping_threshold_ms", str(threshold))
+        print(f"\nPing alert threshold set to {threshold}ms")
 
     print("\nNetwork profile complete")
 

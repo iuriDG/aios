@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 echo "Uninstalling AIOS..."
 
@@ -35,12 +35,18 @@ rm -rf /run/aios
 rm -f /etc/aios/ipc.secret
 rmdir /etc/aios 2>/dev/null || true
 
-# Restore system defaults
+# Restore system defaults - guard against missing cpufreq paths (e.g. no scaling driver)
 for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-    echo "balanced" > $cpu 2>/dev/null || true
+    [ -f "$cpu" ] && echo "balanced" > "$cpu" 2>/dev/null || true
 done
 cgdelete -r cpu:aios 2>/dev/null || true
-tc qdisc del dev $(ip route show default | awk '/dev/ {print $5}') root 2>/dev/null || true
+
+# Quote the command substitution to handle interface names safely;
+# skip tc entirely if we can't determine the interface
+DEFAULT_IFACE=$(ip route show default 2>/dev/null | awk '/dev/ {print $5; exit}')
+if [ -n "$DEFAULT_IFACE" ]; then
+    tc qdisc del dev "$DEFAULT_IFACE" root 2>/dev/null || true
+fi
 
 # Remove aios user
 userdel aios 2>/dev/null || true

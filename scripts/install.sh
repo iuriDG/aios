@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 echo "Installing AIOS..."
 
@@ -14,10 +14,10 @@ chown aios:aios /var/log/aios
 touch /var/log/aios/audit.log
 chattr +a /var/log/aios/audit.log
 
-# Build Rust binaries
+# Build Rust binaries - use subshells so a failed build never leaves us in the wrong dir
 echo "Building helper and watchdog..."
-cd helper && cargo build --release && cd ..
-cd watchdog && cargo build --release && cd ..
+(cd helper && cargo build --release)
+(cd watchdog && cargo build --release)
 
 # Install binaries
 cp helper/target/release/aios-helper /usr/local/bin/
@@ -48,12 +48,10 @@ if [ ! -f /opt/aios-agent/profiles/aios.db ]; then
     python3 scripts/first_run.py
 fi
 
-echo "AIOS installed - reboot to start"
-
-# After first_run.py line add:
 echo "Running hardware benchmark..."
 python3 scripts/benchmark.py
 
 echo "Running network profile..."
 python3 scripts/network_profile.py
 
+echo "AIOS installed - reboot to start"

@@ -1,21 +1,20 @@
 #!/bin/bash
-# Called by watchdog on unrecoverable crash
-# Displays panic screen and restores defaults
+set -e
 
-ERROR_MSG=${1:-"Unknown error"}
+ERROR_MSG="${1:-Unknown error}"
 LOG_FILE="/var/log/aios/panic.log"
 TIMESTAMP=$(date +"%Y-%m-%dT%H:%M:%S")
 
 # Log it
-echo "$TIMESTAMP PANIC: $ERROR_MSG" >> $LOG_FILE
+echo "$TIMESTAMP PANIC: $ERROR_MSG" >> "$LOG_FILE"
 
-# Restore CPU governor
+# Restore CPU governor - guard against missing cpufreq paths
 for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-    echo "balanced" > $cpu 2>/dev/null
+    [ -f "$cpu" ] && echo "balanced" > "$cpu" 2>/dev/null || true
 done
 
 # Remove cgroups
-cgdelete -r cpu:aios 2>/dev/null
+cgdelete -r cpu:aios 2>/dev/null || true
 
 # Remove ready file
 rm -f /run/aios/ready

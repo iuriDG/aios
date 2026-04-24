@@ -1,7 +1,7 @@
 [Unit]
 Description=AIOS Privileged Helper
-After=network.target
-Before=aios-watchdog.service
+After=local-fs.target
+Before=aios-watchdog.service aios-agent.service
 
 [Service]
 Type=simple
@@ -9,8 +9,12 @@ ExecStart=/usr/local/bin/aios-helper
 Restart=no
 User=root
 Group=root
+RuntimeDirectory=aios
+RuntimeDirectoryMode=0750
 StandardOutput=journal
 StandardError=journal
+PrivateTmp=true
+ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target

@@ -3,6 +3,7 @@ use std::time::Duration;
 use std::thread;
 use std::fs;
 use std::collections::HashMap;
+use sha2::{Sha256, Digest};
 
 const AGENT_BINARY: &str = "/usr/local/bin/aios-agent";
 const HELPER_BINARY: &str = "/usr/local/bin/aios-helper";
@@ -14,35 +15,48 @@ fn main() {
     fs::create_dir_all("/run/aios").expect("Failed to create /run/aios");
     fs::create_dir_all("/var/log/aios").expect("Failed to create /var/log/aios");
 
-    println!("aios-watchdog started");
+    eprintln!("aios-watchdog started");
 
-    // Store binary hashes at startup
+    // Hash binaries at startup - abort if either is unreadable
     let mut known_hashes: HashMap<&str, String> = HashMap::new();
-    known_hashes.insert(AGENT_BINARY, hash_file(AGENT_BINARY));
-    known_hashes.insert(HELPER_BINARY, hash_file(HELPER_BINARY));
+    for path in &[AGENT_BINARY, HELPER_BINARY] {
+        match hash_file(path) {
+            Some(h) => { known_hashes.insert(path, h); }
+            None => {
+                eprintln!("[WATCHDOG] Cannot hash {} at startup - aborting", path);
+                std::process::exit(1);
+            }
+        }
+    }
 
     loop {
         // Check for binary tampering
         for (path, known_hash) in &known_hashes {
-            let current_hash = hash_file(path);
-            if current_hash != *known_hash && !known_hash.is_empty() {
-                handle_tamper(path);
-                return; // Hard stop - require manual restart
+            match hash_file(path) {
+                Some(current_hash) if current_hash != *known_hash => {
+                    handle_tamper(path);
+                    return;
+                }
+                None => {
+                    // Binary became unreadable - treat as tamper
+                    handle_tamper(path);
+                    return;
+                }
+                _ => {}
             }
         }
 
         // Check agent is running
         if !is_process_running("aios-agent") {
-            println!("[WATCHDOG] Agent not running - restoring defaults and restarting");
+            eprintln!("[WATCHDOG] Agent not running - restoring defaults and restarting");
             restore_defaults();
             restart_process("aios-agent");
         }
 
         // Check helper is running
         if !is_process_running("aios-helper") {
-            println!("[WATCHDOG] Helper not running - restoring defaults");
+            eprintln!("[WATCHDOG] Helper not running - restoring defaults");
             restore_defaults();
-            // Helper requires manual restart - security boundary
             send_notification("AIOS helper stopped unexpectedly - manual restart required");
             log_tamper("helper process died unexpectedly");
         }
@@ -51,15 +65,11 @@ fn main() {
     }
 }
 
-fn hash_file(path: &str) -> String {
-    match fs::read(path) {
-        Ok(bytes) => {
-            // Simple checksum - replace with SHA256 in hardening phase
-            let sum: u64 = bytes.iter().map(|&b| b as u64).sum();
-            format!("{:x}", sum)
-        }
-        Err(_) => String::new()
-    }
+fn hash_file(path: &str) -> Option<String> {
+    let bytes = fs::read(path).ok()?;
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    Some(hex::encode(hasher.finalize()))
 }
 
 fn is_process_running(name: &str) -> bool {
@@ -75,14 +85,15 @@ fn is_process_running(name: &str) -> bool {
 }
 
 fn restore_defaults() {
-    println!("[WATCHDOG] Restoring system defaults");
+    eprintln!("[WATCHDOG] Restoring system defaults");
 
     // Reset CPU governor to balanced
     if let Ok(entries) = fs::read_dir("/sys/devices/system/cpu") {
         for entry in entries.flatten() {
-            let gov_path = entry.path()
-                .join("cpufreq/scaling_governor");
-            let _ = fs::write(&gov_path, "balanced");
+            let gov_path = entry.path().join("cpufreq/scaling_governor");
+            if gov_path.exists() {
+                let _ = fs::write(&gov_path, "balanced");
+            }
         }
     }
 
@@ -91,26 +102,28 @@ fn restore_defaults() {
         .args(["-r", "cpu:aios"])
         .output();
 
-    // Reset all process nice values managed by aios
-    // Read pids from audit log and renice back to 0
+    // Renice PIDs that aios managed back to 0
+    // Only read the last 500 lines to bound recovery time on large logs
     if let Ok(log) = fs::read_to_string("/var/log/aios/audit.log") {
-        for line in log.lines() {
+        for line in log.lines().rev().take(500) {
             if let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) {
                 if entry["action"] == "renice" {
                     if let Some(pid) = entry["target"].as_str() {
-                        let _ = Command::new("renice")
-                            .args(["0", "-p", pid])
-                            .output();
+                        // Validate PID is numeric before passing to renice
+                        if pid.chars().all(|c| c.is_ascii_digit()) && !pid.is_empty() {
+                            let _ = Command::new("renice")
+                                .args(["0", "-p", pid])
+                                .output();
+                        }
                     }
                 }
             }
         }
     }
 
-    // Remove ready file so nothing launches until agent is back
     let _ = fs::remove_file(READY_FILE);
 
-    println!("[WATCHDOG] Defaults restored");
+    eprintln!("[WATCHDOG] Defaults restored");
 }
 
 fn restart_process(name: &str) {
@@ -124,21 +137,18 @@ fn handle_tamper(path: &str) {
     eprintln!("[WATCHDOG] {}", msg);
     log_tamper(&msg);
 
-    // Clean up first
     restore_defaults();
     let _ = fs::remove_file("/run/aios/helper.sock");
 
-    // Then alert
     send_notification(&msg);
-    Command::new("bash")
-        .args([
-            "/usr/local/bin/aios-panic.sh",
-            &format!("Tamper detected on {}", path)
-        ])
+
+    // Call panic script directly - no shell involved
+    Command::new("/usr/local/bin/aios-panic.sh")
+        .arg(format!("Tamper detected on {}", path))
         .output()
         .ok();
 
-    println!("[WATCHDOG] System locked - manual restart required");
+    eprintln!("[WATCHDOG] System locked - manual restart required");
 }
 
 fn log_tamper(message: &str) {
@@ -159,14 +169,9 @@ fn send_notification(message: &str) {
 }
 
 fn chrono_now() -> String {
-    // Simple timestamp without pulling in chrono crate
-    let output = Command::new("date")
+    Command::new("date")
         .arg("+%Y-%m-%dT%H:%M:%S")
         .output()
-        .unwrap_or_else(|_| std::process::Output {
-            status: std::process::ExitStatus::from_raw(0),
-            stdout: vec![],
-            stderr: vec![]
-        });
-    String::from_utf8_lossy(&output.stdout).trim().to_string()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|_| String::from("unknown"))
 }
