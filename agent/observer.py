@@ -21,6 +21,8 @@ def _get_processes():
     result = []
     for p in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_info', 'status']):
         try:
+            if p.pid < 10:
+                continue
             result.append({
                 "pid": p.pid,
                 "name": p.name(),
@@ -30,7 +32,7 @@ def _get_processes():
             })
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
-    return sorted(result, key=lambda x: x["cpu_pct"], reverse=True)[:15]
+    return sorted(result, key=lambda x: x["ram_mb"], reverse=True)[:20]
 
 
 def observe():
