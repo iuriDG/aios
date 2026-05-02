@@ -6,7 +6,7 @@ from datetime import datetime
 from observer import observe
 from decision_engine import decide
 from llm_interface import ask, is_ollama_running, is_model_available
-from profile_store import init_db, get_user_pref, set_user_pref, log_action, cleanup_audit_log
+from profile_store import init_db, get_user_pref, set_user_pref, log_action, cleanup_audit_log, upsert_app_profile
 from ipc import send_actions
 from network_monitor import start as start_network_monitor
 from network_monitor import stop as stop_network_monitor
@@ -29,6 +29,28 @@ def send_notification(message: str):
         subprocess.run(["notify-send", "AIOS", message], check=False)
     except FileNotFoundError:
         print(f"[NOTIFY] {message}")
+
+def record_profile(snapshot: dict, mode: str):
+    import psutil
+    focus = snapshot.get("focus") or {}
+    binary = focus.get("class", "").strip()
+    if not binary:
+        return
+    focus_pid = focus.get("pid", 0)
+    proc = next((p for p in snapshot.get("processes", []) if p["pid"] == focus_pid), None)
+    if not proc:
+        try:
+            p = psutil.Process(focus_pid)
+            proc = {"cpu_pct": p.cpu_percent(interval=0.1), "ram_mb": round(p.memory_info().rss / 1e6, 1)}
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return
+    upsert_app_profile(binary, mode, {
+        "cpu_avg":          proc.get("cpu_pct", 0),
+        "ram_avg_mb":       proc.get("ram_mb", 0),
+        "gpu_avg":          snapshot.get("gpu", {}).get("utilisation_pct", 0),
+        "disk_read_avg_mb": snapshot.get("disk", {}).get("read_mb", 0),
+        "disk_write_avg_mb":snapshot.get("disk", {}).get("write_mb", 0),
+    })
 
 def run():
     init_db()
@@ -72,6 +94,8 @@ def run():
                     print(f"[LLM] Ollama decisions: {len(llm_actions)} actions", flush=True)
                 else:
                     print("[LLM] No valid response - using rule-based", flush=True)
+
+            record_profile(snapshot, mode)
 
             history.append(mode)
             if len(history) > 3:

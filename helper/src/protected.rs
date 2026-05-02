@@ -1,7 +1,12 @@
 const PROTECTED_NAMES: &[&str] = &[
     "systemd", "init", "sshd", "networkmanager",
     "dbus", "aios-agent", "aios-helper", "aios-watchdog",
-    "kworker", "migration", "rcu_sched"
+    "kworker", "migration", "rcu_sched",
+    // Desktop environment and editors — never kill these
+    "code", "code-server", "electron", "gnome-shell", "plasmashell",
+    "xorg", "wayland", "gdm", "sddm", "lightdm",
+    "pulseaudio", "pipewire", "wireplumber",
+    "Xwayland", "kwin_wayland", "kwin_x11",
 ];
 
 pub fn is_protected(pid: i32) -> bool {

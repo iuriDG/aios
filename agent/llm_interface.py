@@ -5,8 +5,14 @@ from profile_store import get_user_pref
 from config import OLLAMA_URL, OLLAMA_MODEL
 
 SYSTEM_PROMPT = """You are an OS process manager. Return a JSON array of actions only — no explanation, no markdown.
-Action types: renice, cgroup_cpu_limit, set_governor, systemctl, kill
-Never touch PIDs below 100 or: systemd, init, sshd, networkmanager, dbus, aios-agent, aios-helper, aios-watchdog"""
+Required fields per action:
+- renice: {"action":"renice","pid":<int>,"priority":<int -20..19>}
+- kill: {"action":"kill","pid":<int>,"signal":<9|15>}
+- set_governor: {"action":"set_governor","governor":<"performance"|"schedutil"|"powersave">}
+- systemctl: {"action":"systemctl","command":<"stop"|"restart">,"unit":<string>}
+- cgroup_cpu_limit: {"action":"cgroup_cpu_limit","pid":<int>,"quota":<1..100>}
+Never touch PIDs below 100 or: systemd, init, sshd, networkmanager, dbus, aios-agent, aios-helper, aios-watchdog, code, electron, gnome-shell, plasmashell, Xorg, pipewire, pulseaudio
+Never use kill action on interactive user processes or desktop applications."""
 
 # Base URL derived from OLLAMA_URL so config is the single source of truth
 _OLLAMA_BASE = "http://localhost:11434"
