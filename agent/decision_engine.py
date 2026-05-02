@@ -68,31 +68,41 @@ def build_gaming_actions(snapshot, gear):
 
 def build_dev_actions(snapshot, gear):
     actions = []
+    focus_pid = (snapshot.get("focus") or {}).get("pid", 0)
     for p in snapshot.get("processes", []):
         name = p["name"].lower()
         pid = p["pid"]
         if is_protected(name):
             continue
-        if any(c in name for c in COMPILERS):
+        if pid == focus_pid:
+            actions.append({"action": "renice", "pid": pid, "priority": NICE_HIGH})
+        elif any(c in name for c in COMPILERS):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_HIGH})
             actions.append({"action": "cgroup_cpu_limit", "pid": pid, "quota": 70})
-        if any(c in name for c in COMPILERS):
+        elif any(d in name for d in KNOWN_DEV):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_NORMAL})
-        elif any(g in name for g in KNOWN_GAMES):
+        elif any(g in name for g in KNOWN_GAMES + NOISE_PROCESSES):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_BACKGROUND})
+        else:
+            actions.append({"action": "renice", "pid": pid, "priority": NICE_LOW})
     return actions
 
 def build_browsing_actions(snapshot, gear):
     actions = []
+    focus_pid = (snapshot.get("focus") or {}).get("pid", 0)
     for p in snapshot.get("processes", []):
         name = p["name"].lower()
         pid = p["pid"]
         if is_protected(name):
             continue
-        if any(b in name for b in KNOWN_BROWSER):
+        if pid == focus_pid:
             actions.append({"action": "renice", "pid": pid, "priority": NICE_NORMAL})
-        elif any(h in name for h in NOISE_PROCESSES):
+        elif any(b in name for b in KNOWN_BROWSER):
+            actions.append({"action": "renice", "pid": pid, "priority": NICE_NORMAL})
+        elif any(d in name for d in KNOWN_DEV + NOISE_PROCESSES):
             actions.append({"action": "renice", "pid": pid, "priority": NICE_BACKGROUND})
+        else:
+            actions.append({"action": "renice", "pid": pid, "priority": NICE_LOW})
     return actions
 
 def build_idle_actions(snapshot, gear):
@@ -121,7 +131,7 @@ def build_transition_actions(snapshot, old_mode, new_mode) -> list:
         elif old_mode == "dev":
             if any(d in name for d in COMPILERS):
                 actions.append({"action": "renice", "pid": pid, "priority": NICE_NORMAL})
-    actions.append({"action": "set_governor", "governor": "balanced"})
+    actions.append({"action": "set_governor", "governor": "schedutil"})
     return actions
 
 def decide(snapshot) -> dict:

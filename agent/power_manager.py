@@ -38,7 +38,7 @@ def get_power_recommendation(mode: str, gear: str) -> dict:
     battery_pct = state["percentage"]
 
     recommendation = {
-        "governor": "balanced",
+        "governor": "schedutil",
         "warn_user": False,
         "warn_message": None,
         "defer_heavy_tasks": False
@@ -53,12 +53,12 @@ def get_power_recommendation(mode: str, gear: str) -> dict:
         elif mode == "idle":
             recommendation["governor"] = "powersave"
         else:
-            recommendation["governor"] = "balanced"
+            recommendation["governor"] = "schedutil"
         return recommendation
 
     # On battery - be conservative
     if mode == "gaming":
-        recommendation["governor"] = "balanced"
+        recommendation["governor"] = "schedutil"
         recommendation["warn_user"] = True
         recommendation["warn_message"] = "Gaming on battery - consider plugging in for best performance"
 
@@ -69,12 +69,12 @@ def get_power_recommendation(mode: str, gear: str) -> dict:
             recommendation["warn_user"] = True
             recommendation["warn_message"] = "Battery below 20% - heavy builds deferred until charged"
         else:
-            recommendation["governor"] = "balanced"
+            recommendation["governor"] = "schedutil"
 
     elif mode == "idle":
         recommendation["governor"] = "powersave"
 
     else:
-        recommendation["governor"] = "powersave" if battery_pct < 30 else "balanced"
+        recommendation["governor"] = "powersave" if battery_pct < 30 else "schedutil"
 
     return recommendation

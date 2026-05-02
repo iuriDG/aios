@@ -62,11 +62,16 @@ def run():
             mode = decision["mode"]
             gear = decision["gear"]
             actions = decision["actions"]
+            source = decision["source"]
 
-            if is_ollama_running() and gear != "heavy":
+            if is_ollama_running():
                 llm_actions = ask(snapshot, mode, gear)
                 if llm_actions:
                     actions = llm_actions
+                    source = "llm"
+                    print(f"[LLM] Ollama decisions: {len(llm_actions)} actions", flush=True)
+                else:
+                    print("[LLM] No valid response - using rule-based", flush=True)
 
             history.append(mode)
             if len(history) > 3:
@@ -93,7 +98,7 @@ def run():
                 os.remove(PROMPT_REPLY_FILE)
 
             if actions:
-                print(f"[LOOP] Mode: {mode} | Gear: {gear} | Actions: {len(actions)} | Source: {decision['source']}")
+                print(f"[LOOP] Mode: {mode} | Gear: {gear} | Actions: {len(actions)} | Source: {source}")
                 send_to_helper(actions, gear, mode)
             else:
                 print(f"[LOOP] Mode: {mode} | Gear: {gear} | No actions")

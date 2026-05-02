@@ -24,7 +24,7 @@ def get_secret() -> bytes:
 
 def sign_request(payload: dict) -> dict:
     secret = get_secret()
-    body = json.dumps(payload, sort_keys=True).encode()
+    body = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
     signature = hmac.new(secret, body, hashlib.sha256).hexdigest()
     payload["signature"] = signature
     return payload
@@ -34,7 +34,7 @@ def verify_signature(payload: dict) -> bool:
     signature = payload.pop("signature", None)
     if not signature:
         return False
-    body = json.dumps(payload, sort_keys=True).encode()
+    body = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
     expected = hmac.new(secret, body, hashlib.sha256).hexdigest()
     payload["signature"] = signature  # restore
     return hmac.compare_digest(signature, expected)
