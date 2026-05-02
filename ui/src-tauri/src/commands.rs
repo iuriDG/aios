@@ -85,11 +85,12 @@ pub fn get_system_state() -> SystemState {
     sys.refresh_all();
 
     let cpu_pct = sys.global_cpu_usage() as f64;
-    let gear = if cpu_pct >= 80.0 { "heavy" } else if cpu_pct >= 50.0 { "medium" } else { "low" }.to_string();
     let ram = sys.total_memory();
     let ram_used = sys.used_memory();
     let ram_available = sys.available_memory();
     let ram_pct = if ram > 0 { ram_used as f64 / ram as f64 * 100.0 } else { 0.0 };
+    let bottleneck = (cpu_pct / 100.0_f64).max(ram_pct / 100.0_f64);
+    let gear = if bottleneck >= 0.8 { "heavy" } else if bottleneck >= 0.5 { "medium" } else { "low" }.to_string();
     let available_ram_gb = ram_available as f64 / 1_073_741_824.0;
 
     let mut proc_list: Vec<_> = sys.processes().values().collect();
@@ -101,10 +102,13 @@ pub fn get_system_state() -> SystemState {
         ram_mb: p.memory() as f64 / 1_048_576.0,
     }).collect();
 
+    let ollama_available = sys.processes().values()
+        .any(|p| p.name().to_string_lossy().to_lowercase().contains("ollama"));
+
     SystemState {
         mode, gear, cpu_pct, ram_pct, gpu_pct: 0.0,
         available_ram_gb, processes, dry_run,
-        ollama_available: false,
+        ollama_available,
     }
 }
 

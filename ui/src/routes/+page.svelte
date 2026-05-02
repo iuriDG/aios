@@ -69,7 +69,11 @@
     loadProfiles();
     loadAuditLog();
     loadPrefs();
-    interval = setInterval(loadState, 5000);
+    interval = setInterval(() => {
+      loadState();
+      if (activeTab === 'audit') loadAuditLog();
+      if (activeTab === 'profiles') loadProfiles();
+    }, 5000);
   });
 
   onDestroy(() => clearInterval(interval));

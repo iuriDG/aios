@@ -41,7 +41,7 @@ pub fn execute(request: &Value) -> Result<String, Box<dyn std::error::Error>> {
 
         "set_governor" => {
             let governor = request["governor"].as_str().ok_or("missing governor")?;
-            if !["performance", "balanced", "powersave"].contains(&governor) {
+            if !["performance", "schedutil", "powersave"].contains(&governor) {
                 return Err("invalid governor".into());
             }
 
@@ -60,7 +60,7 @@ pub fn execute(request: &Value) -> Result<String, Box<dyn std::error::Error>> {
             if std::path::Path::new(amd_gpu_path).exists() {
                 let amd_level = match governor {
                     "performance" => "high",
-                    "balanced"    => "auto",
+                    "schedutil"    => "auto",
                     "powersave"   => "low",
                     _             => "auto"
                 };
@@ -82,32 +82,31 @@ pub fn execute(request: &Value) -> Result<String, Box<dyn std::error::Error>> {
             if !(1..=100).contains(&quota) {
                 return Err(format!("quota {} out of range (1-100)", quota).into());
             }
-            let path = format!("/sys/fs/cgroup/aios/{}/cpu.max", pid);
-            std::fs::create_dir_all(format!("/sys/fs/cgroup/aios/{}", pid))?;
-            std::fs::write(&path, format!("{} 100000", quota * 1000))?;
+            let base = format!("/sys/fs/cgroup/aios.slice/{}", pid);
+            std::fs::create_dir_all(&base)?;
+            std::fs::write(format!("{}/cpu.max", base), format!("{} 100000", quota * 1000))?;
             Ok(format!("cpu limit {}% set for pid {}", quota, pid))
         }
 
         "cgroup_ram_limit" => {
             let pid = request["pid"].as_i64().ok_or("missing pid")?;
             let bytes = request["bytes"].as_i64().ok_or("missing bytes")?;
-            let path = format!("/sys/fs/cgroup/aios/{}", pid);
-            std::fs::create_dir_all(&path)?;
-            std::fs::write(format!("{}/memory.max", path), bytes.to_string())?;
+            let base = format!("/sys/fs/cgroup/aios.slice/{}", pid);
+            std::fs::create_dir_all(&base)?;
+            std::fs::write(format!("{}/memory.max", base), bytes.to_string())?;
             Ok(format!("ram limit {}MB set for pid {}", bytes / 1_000_000, pid))
         }
 
         "cpuset_assign" => {
             let pid = request["pid"].as_i64().ok_or("missing pid")?;
             let cores = request["cores"].as_str().ok_or("missing cores")?;
-            // Validate cores is a simple CPU range like "0", "0-3", "0,2"
             if !cores.chars().all(|c| c.is_ascii_digit() || c == '-' || c == ',') {
                 return Err(format!("invalid cores format: {}", cores).into());
             }
-            let path = format!("/sys/fs/cgroup/aios/{}", pid);
-            std::fs::create_dir_all(&path)?;
-            std::fs::write(format!("{}/cpuset.cpus", path), cores)?;
-            std::fs::write(format!("{}/cgroup.procs", path), pid.to_string())?;
+            let base = format!("/sys/fs/cgroup/aios.slice/{}", pid);
+            std::fs::create_dir_all(&base)?;
+            std::fs::write(format!("{}/cpuset.cpus", base), cores)?;
+            std::fs::write(format!("{}/cgroup.procs", base), pid.to_string())?;
             Ok(format!("pid {} assigned to cores {}", pid, cores))
         }
 
